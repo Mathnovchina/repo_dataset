@@ -3,7 +3,10 @@ install.packages("RJSONIO")
 install.packages("wbstats")
 install.packages('OECD')
 install.packages("usethis")
+
 install_github("expersso/OECD")
+
+library(data.table)
 library(usethis)
 library(devtools)
 library(OECD)
@@ -37,7 +40,7 @@ data_env <- get_eurostat("ENV_AC_EPNEIS", filters = filter2)
 data_env = rename(data_env,exp_env=values)
 
 data_join <-merge(data_exp,data_env, by = c("geo", "time"), all = TRUE)
-data_join=rename(data_join,exp_env=values.y)
+data_join = rename(data_join,exp_env=values.y)
 
 # GDP 
 
@@ -45,10 +48,33 @@ gdp_base <- wb_search("unemployment")
 
 # Unemployment 
 oecddataset_list <- get_datasets()
-df2 <- get_dataset(dataset = "ALFS_POP_LABOUR", country = countries, sex = "TT",start_time = 1995, end_time = 2021)
 
-df2 <- subset(df2, SEX == "TT")
-data_unemp <- get_eurostat("med_ps421")
+dataset_list <- get_datasets()
+search_dataset("unemployment", data = dataset_list)
 
+df2 <- "MIG_NUP_RATES_GENDER"
 
+# df2 <- subset(df2, SEX == "TT")
+# data_unemp <- get_eurostat("med_ps421")
+dstruc <- get_data_structure(df2)
+str(dstruc, max.level = 1)
+dstruc$VAR_DESC
+dstruc$RATE
+dstruc$GENDER
 
+filter_list <- "U_RATE"
+df <- get_dataset(dataset = df2, RATE = "U_RATE")
+df_emp = subset(df, RATE == "U_RATE")
+colnames(df_emp)[colnames(df_emp) == 'COUNTRY'] <- 'geo'
+colnames(df_emp)[colnames(df_emp) == 'Time'] <- 'time'
+data_join <-merge(data_join,df_emp, by = c("geo", "time"), all = TRUE)
+
+df_emp <- df_emp[ , time = as.Date(time)]
+
+df_emp$time <- as.Date(df_emp$time,format="%Y")
+data_join$time <- as.Date(data_join$time,format="%Y")
+mutate(data_join, time = as.Date(time, format= "%Y"))
+class(Date$ArrestDate)
+
+sapply(df_emp, class)
+sapply(data_join,class)
