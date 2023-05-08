@@ -5,7 +5,8 @@ install.packages('OECD')
 install.packages("usethis")
 remotes::install_github("https://github.com/expersso/OECD")
 install_github("expersso/OECD")
-
+library(remotes)
+remotes::install_github("ropengov/eurostat")
 library(data.table)
 library(usethis)
 library(devtools)
@@ -29,9 +30,10 @@ country_nam <- eu_countries
 filters1 = list( cofog99= "Total",
                  na_item = "TE",
                  sector = "S13",
-                 unit = "MIO_EUR")
+                unit = "MIO_EUR")
 data_exp <- get_eurostat("GOV_10A_EXP", filters = filters1)
 data_exp = rename(data_exp,exp_tot = values)
+
 
 # National expenditure on environmental protection, total economy, millions euro
 
@@ -42,6 +44,7 @@ data_env = rename(data_env,exp_env=values)
 
 data_join <-merge(data_exp,data_env, by = c("geo", "time"), all = TRUE)
 data_join = rename(data_join,exp_env=values.y)
+data_join$time = format(as.Date(data_join$time, format="%d/%m/%Y"),"%Y")
 
 # GDP 
 
@@ -94,11 +97,16 @@ df_emptot$geo[df_emptot$geo == "NOR"] = "NO"
 df_emptot$geo[df_emptot$geo == "POL"] = "PL"
 df_emptot$geo[df_emptot$geo == "SVK"] = "SK"
 df_emptot$geo[df_emptot$geo == "SVN"] = "SI"
+df_emptot$geo[df_emptot$geo == "ESP"] = "ES"
+df_emptot$geo[df_emptot$geo == "SWE"] = "SE"
+df_emptot$geo[df_emptot$geo == "CHE"] = "CH"
+df_emptot$geo[df_emptot$geo == "GRB"] = "UK"
+
 
 data_join <-merge(data_join,df_emptot, by = c("geo", "time"), all = TRUE)
 
 df_emp <- df_emp[ , time = as.Date(time)]
-
+df_emptot$time = format(as.Date(df_emptot$time, format="%d/%m/%Y"),"%Y")
 df_emp$time <- as.Date(df_emp$time,format="%Y")
 data_join$time <- as.Date(data_join$time,format="%Y")
 mutate(data_join, time = as.Date(time, format= "%Y"))
@@ -117,7 +125,26 @@ dstruc2 <- get_data_structure(dataset)   # list of dataframes with human-readabl
 str(dstruc2, max.level = 1)
 dstruc2$UNIT          # GRWH : growth rate, USD : dollar 
 dstruc2$MEASURE 
+dstruc2$VAR_DESC
+dstruc2$OBS_STATUS
+dstruc2$LOCATION
 
-df_gdp <- get_dataset("SNA_TABLE1")
+filter_gdp <- c( MEASURE = )
+df_gdp <- get_dataset(dataset ="SNA_TABLE1", LOCATION = "FRA" )
 
+search_dataset("GDP", data = dataset_list)
+filter_gdp <- c( MEASURE = )
+
+# CP_MEUR : current price million euros, B1QG : Gross domestic product at market price 
+
+data_gdp <- get_eurostat("nama_10_gdp", filters = list(geo = countries, na_item = "B1GQ", unit = "CP_MEUR"))
+data_gdp$time = format(as.Date(data_gdp$time, format="%d/%m/%Y"),"%Y")
+
+# Price index : implicit deflator 2010 = 100 euros PD10EUR
+
+data_gdp_deflator <- get_eurostat("nama_10_gdp", filters = list(geo = countries, na_item = "B1GQ", unit = "PD10_EUR"))
+data_gdp_deflator$time = format(as.Date(data_gdp_deflator$time, format="%d/%m/%Y"),"%Y")
+
+
+# CHAIN Link Volue ? 
 
