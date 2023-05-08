@@ -3,7 +3,7 @@ install.packages("RJSONIO")
 install.packages("wbstats")
 install.packages('OECD')
 install.packages("usethis")
-
+remotes::install_github("https://github.com/expersso/OECD")
 install_github("expersso/OECD")
 
 library(data.table)
@@ -22,7 +22,8 @@ year <-  seq(from =1995, to=2021)
 countries = c("AT","BE", "BG", "CH", "CY", "CZ", "DE", "DK", "EA19", "EA20", "EE", "EL", "ES", 
               "EU27_2020", "FI", "FR", "HR", "HU", "IE", "IS","IT", "LT", "LU", "LV", "MT", "NL",
               "NO", "PL", "PT", "RO", "SE", "SI", "SK", "TR", "UK")
-
+country_name <- efta_countries
+country_nam <- eu_countries
 # `government expenditure Totale, general gov, millions euro
 
 filters1 = list( cofog99= "Total",
@@ -54,20 +55,47 @@ search_dataset("unemployment", data = dataset_list)
 
 df2 <- "MIG_NUP_RATES_GENDER"
 
-# df2 <- subset(df2, SEX == "TT")
-# data_unemp <- get_eurostat("med_ps421")
-dstruc <- get_data_structure(df2)
+dstruc <- get_data_structure(df2)   # list of dataframes with human-readable values for variable names and values
 str(dstruc, max.level = 1)
 dstruc$VAR_DESC
 dstruc$RATE
+dstruc$COUNTRY
 dstruc$GENDER
 
 filter_list <- "U_RATE"
 df <- get_dataset(dataset = df2, RATE = "U_RATE")
 df_emp = subset(df, RATE == "U_RATE")
+df_emptot = subset(df_emp, GENDER == "TOT")
 colnames(df_emp)[colnames(df_emp) == 'COUNTRY'] <- 'geo'
 colnames(df_emp)[colnames(df_emp) == 'Time'] <- 'time'
-data_join <-merge(data_join,df_emp, by = c("geo", "time"), all = TRUE)
+colnames(df_emptot)[colnames(df_emptot)=='ObsValue'] <- 'unemp_tot'
+
+# countries = c("AT","BE", "BG", "CH", "CY", "CZ", "DE", "DK", "EA19", "EA20", "EE", "EL", "ES", 
+              #"EU27_2020", "FI", "FR", "HR", "HU", "IE", "IS","IT", "LT", "LU", "LV", "MT", "NL",
+              #"NO", "PL", "PT", "RO", "SE", "SI", "SK", "TR", "UK")
+# adapting country code to eurostat's code 
+df_emptot$geo[df_emptot$geo == "AUT"] = "AT"
+df_emptot$geo[df_emptot$geo == "BEL"] = "BE"
+df_emptot$geo[df_emptot$geo == "CZE"] = "CZ"
+df_emptot$geo[df_emptot$geo == "DNK"] = "DK"
+df_emptot$geo[df_emptot$geo == "EST"] = "EE"
+df_emptot$geo[df_emptot$geo == "FIN"] = "FI"
+df_emptot$geo[df_emptot$geo == "FRA"] = "FR"
+df_emptot$geo[df_emptot$geo == "DEU"] = "DE"
+df_emptot$geo[df_emptot$geo == "GRC"] = "EL"
+df_emptot$geo[df_emptot$geo == "HUN"] = "HU"
+df_emptot$geo[df_emptot$geo == "IRL"] = "IE"
+df_emptot$geo[df_emptot$geo == "ISL"] = "IS"
+df_emptot$geo[df_emptot$geo == "ITA"] = "IT"
+df_emptot$geo[df_emptot$geo == "LVA"] = "LV"
+df_emptot$geo[df_emptot$geo == "LTU"] = "LT"
+df_emptot$geo[df_emptot$geo == "LUX"] = "LU"
+df_emptot$geo[df_emptot$geo == "NOR"] = "NO"
+df_emptot$geo[df_emptot$geo == "POL"] = "PL"
+df_emptot$geo[df_emptot$geo == "SVK"] = "SK"
+df_emptot$geo[df_emptot$geo == "SVN"] = "SI"
+
+data_join <-merge(data_join,df_emptot, by = c("geo", "time"), all = TRUE)
 
 df_emp <- df_emp[ , time = as.Date(time)]
 
@@ -79,7 +107,17 @@ class(Date$ArrestDate)
 sapply(df_emp, class)
 sapply(data_join,class)
 
-# growth rate 
+# growth rate / GDP
 
 
-search_dataset("growth", data = dataset_list)
+search_dataset("GDP", data = dataset_list)
+dataset = "SNA_TABLE1" # Gross domestic Product data base 
+
+dstruc2 <- get_data_structure(dataset)   # list of dataframes with human-readable values for variable names and values
+str(dstruc2, max.level = 1)
+dstruc2$UNIT          # GRWH : growth rate, USD : dollar 
+dstruc2$MEASURE 
+
+df_gdp <- get_dataset("SNA_TABLE1")
+
+
