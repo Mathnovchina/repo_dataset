@@ -34,15 +34,22 @@ filters1 = list( cofog99= "Total",
 data_exp <- get_eurostat("GOV_10A_EXP", filters = filters1)
 data_exp = rename(data_exp,exp_tot = values)
 
-# Government final consumption  (has to be deflated, current millions euros)
+# Government final consumption  + investment grant (has to be deflated, current millions euros)
 
-filter_c = list(na_item = "P3_S13",
-                 unit = "CP_MEUR")
-data_cons <- get_eurostat("TEC00010", filters = filter_c)
-data_cons = rename(data_cons,pub_cons = values)
+filter_c = list(cofog99 = "Total",
+                na_item = c("D92","P3"), # P3 final consumption expenditure ,D92 investment grant
+                 unit = "CP_MEUR",
+                sector = "S13",
+                unit = "MIO_EUR")
+exp_consinv<- get_eurostat("GOV_10A_EXP", filters = filter_c)
 
-# above not good, only 12 years
+inv_grant <- subset(exp_consinv,na_item == "D92")
+inv_grant = rename(inv_grant,inv_grants = values)
+inv_grant$time = format(as.Date(inv_grant$time, format ="%d/%m/%Y"),"%Y")
 
+fin_cons <- subset(exp_consinv,na_item == "P3")
+fin_cons = rename(fin_cons,final_cons=values)
+fin_cons$time = format(as.Date(fin_cons$time, format ="%d/%m/%Y"),"%Y")
 # National expenditure on environmental protection, total economy, millions euro
 
 filter2 = list(sector = "S1",
@@ -62,7 +69,7 @@ envstruc$TABLES
 envstruc$MEASURE
 envstruc$EXP
 env_expdat <- get_dataset(env_exp,filter = list("INV","PUB","NATCURR")) # millions national currency 
-
+data_hour$time = format(as.Date(data_hour$time, format ="%d/%m/%Y"),"%Y")
 
 # GDP 
 
