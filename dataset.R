@@ -245,6 +245,7 @@ data_hour <- subset(data_hour,select = c(time,geo, ths_whour))
 data_gdp <- subset(data_gdp,select = c(time,geo,gdp))
 data_gdp_deflator15 <- subset(data_gdp_deflator15,select=c(geo,time,deflator15))
 df_int <- subset(df_int,select = c(geo,time,long_int))
+data_gdp_deflator15 <- subset(data_gdp_deflator15, select = c(geo,time,deflator15))
 
 data_join <- merge(fin_cons,inv_grant, by = c("geo", "time"), all = TRUE)
 data_join <- merge(data_join,data_env, by = c("geo", "time"), all = TRUE)
@@ -253,9 +254,20 @@ data_join <- merge(data_join,data_hour, by = c("geo", "time"), all = TRUE)
 data_join <- merge(data_join,data_gdp, by = c("geo", "time"), all = TRUE)
 data_join <- merge(data_join,data_gdp_deflator15, by = c("geo", "time"), all = TRUE)
 data_join <- merge(data_join,df_int, by = c("geo", "time"), all = TRUE)
-
+data_join <- merge(data_join,data_gdp_deflator,by = c("geo", "time"), all = TRUE)
+data_join <- subset(data_join,select = -c(freq.x,unit.x,na_item.x,freq.y,unit.y,na_item.y))
+data_join <- rename(data_join,deflator15 = values.y)
 data_join = data_join[rowSums(is.na(data_join))<8,]
-
+data_join <- data_join %>% 
+  mutate(deflated_GDP = if_else(gdp == "NA",  0,100*gdp/deflator15))
+data_join <- data_join %>% 
+  mutate(final_cons = if_else(final_cons == "NA",  0,100*final_cons/deflator15))
+data_join <- data_join %>% 
+  mutate(inv_grants = if_else(inv_grants == "NA",  0,100*inv_grants/deflator15))
+data_join <- data_join %>% 
+  mutate(exp_env = if_else(exp_env == "NA",  0,100*exp_env/deflator15))
+data_join <- data_join %>% 
+  mutate(va_thwokers = if_else(deflated_GDP == "NA",  0, deflated_GDP/ths_wpeople))
 
 
 
