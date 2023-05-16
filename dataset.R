@@ -3,10 +3,14 @@ install.packages("RJSONIO")
 install.packages("wbstats")
 install.packages('OECD')
 install.packages("usethis")
+install.packages(c('tibble', 'dplyr', 'readr'))
 remotes::install_github("https://github.com/expersso/OECD")
 install_github("expersso/OECD")
 library(remotes)
 remotes::install_github("ropengov/eurostat")
+library(dplyr)
+library(readr)
+library(tibble)
 library(data.table)
 library(usethis)
 library(devtools)
@@ -33,12 +37,14 @@ filters1 = list( cofog99= "Total",
                 unit = "MIO_EUR")
 data_exp <- get_eurostat("GOV_10A_EXP", filters = filters1)
 data_exp = rename(data_exp,exp_tot = values)
+data_exp$time = format(as.Date(data_exp$time, format ="%d/%m/%Y"),"%Y")
 
+warning()
 # Government final consumption  + investment grant (has to be deflated, current millions euros)
+# P3 final consumption expenditure ,D92 investment grant
 
-filter_c = list(cofog99 = "Total",
-                na_item = c("D92","P3"), # P3 final consumption expenditure ,D92 investment grant
-                 unit = "CP_MEUR",
+filter_c = list(cofog99 = "TOTAL",
+                na_item = c("P3","D92"),
                 sector = "S13",
                 unit = "MIO_EUR")
 exp_consinv<- get_eurostat("GOV_10A_EXP", filters = filter_c)
@@ -50,26 +56,18 @@ inv_grant$time = format(as.Date(inv_grant$time, format ="%d/%m/%Y"),"%Y")
 fin_cons <- subset(exp_consinv,na_item == "P3")
 fin_cons = rename(fin_cons,final_cons=values)
 fin_cons$time = format(as.Date(fin_cons$time, format ="%d/%m/%Y"),"%Y")
-# National expenditure on environmental protection, total economy, millions euro
+# National expenditure on environmental protection, total economy, millions euro to be deflated 
 
 filter2 = list(sector = "S1",
                unit = "MIO_EUR")
 data_env <- get_eurostat("ENV_AC_EPNEIS", filters = filter2)
 data_env = rename(data_env,exp_env=values)
 
+data_env$time = format(as.Date(data_env$time, format="%d/%m/%Y"),"%Y")
+
 data_join <-merge(data_exp,data_env, by = c("geo", "time"), all = TRUE)
 data_join = rename(data_join,exp_env=values.y)
 data_join$time = format(as.Date(data_join$time, format="%d/%m/%Y"),"%Y")
-
-env_exp = "EPER"
-envstruc <- get_data_structure(env_exp)   # list of dataframes with human-readable values for variable names and values
-str(envstruc, max.level = 1)
-envstruc$VAR_DESC
-envstruc$TABLES
-envstruc$MEASURE
-envstruc$EXP
-env_expdat <- get_dataset(env_exp,filter = list("INV","PUB","NATCURR")) # millions national currency 
-data_hour$time = format(as.Date(data_hour$time, format ="%d/%m/%Y"),"%Y")
 
 # GDP 
 
@@ -115,45 +113,45 @@ filter_list <- "U_RATE"
 df <- get_dataset(dataset = df2, RATE = "U_RATE")
 df4 <- get_dataset(dataset = emp, IND = "EMP15_T")
 df_emp = subset(df, RATE == "U_RATE")
-df_emptot = subset(df_emp, GENDER == "TOT")
+df_int = subset(df_emp, GENDER == "TOT")
 colnames(df_emp)[colnames(df_emp) == 'COUNTRY'] <- 'geo'
 colnames(df_emp)[colnames(df_emp) == 'Time'] <- 'time'
-colnames(df_emptot)[colnames(df_emptot)=='ObsValue'] <- 'unemp_tot'
+colnames(df_int)[colnames(df_int)=='ObsValue'] <- 'unemp_tot'
 
 # countries = c("AT","BE", "BG", "CH", "CY", "CZ", "DE", "DK", "EA19", "EA20", "EE", "EL", "ES", 
               #"EU27_2020", "FI", "FR", "HR", "HU", "IE", "IS","IT", "LT", "LU", "LV", "MT", "NL",
               #"NO", "PL", "PT", "RO", "SE", "SI", "SK", "TR", "UK")
 # adapting country code to eurostat's code 
-df_emptot$geo[df_emptot$geo == "AUT"] = "AT"
-df_emptot$geo[df_emptot$geo == "BEL"] = "BE"
-df_emptot$geo[df_emptot$geo == "CZE"] = "CZ"
-df_emptot$geo[df_emptot$geo == "DNK"] = "DK"
-df_emptot$geo[df_emptot$geo == "EST"] = "EE"
-df_emptot$geo[df_emptot$geo == "FIN"] = "FI"
-df_emptot$geo[df_emptot$geo == "FRA"] = "FR"
-df_emptot$geo[df_emptot$geo == "DEU"] = "DE"
-df_emptot$geo[df_emptot$geo == "GRC"] = "EL"
-df_emptot$geo[df_emptot$geo == "HUN"] = "HU"
-df_emptot$geo[df_emptot$geo == "IRL"] = "IE"
-df_emptot$geo[df_emptot$geo == "ISL"] = "IS"
-df_emptot$geo[df_emptot$geo == "ITA"] = "IT"
-df_emptot$geo[df_emptot$geo == "LVA"] = "LV"
-df_emptot$geo[df_emptot$geo == "LTU"] = "LT"
-df_emptot$geo[df_emptot$geo == "LUX"] = "LU"
-df_emptot$geo[df_emptot$geo == "NOR"] = "NO"
-df_emptot$geo[df_emptot$geo == "POL"] = "PL"
-df_emptot$geo[df_emptot$geo == "SVK"] = "SK"
-df_emptot$geo[df_emptot$geo == "SVN"] = "SI"
-df_emptot$geo[df_emptot$geo == "ESP"] = "ES"
-df_emptot$geo[df_emptot$geo == "SWE"] = "SE"
-df_emptot$geo[df_emptot$geo == "CHE"] = "CH"
-df_emptot$geo[df_emptot$geo == "GRB"] = "UK"
+df_int$geo[df_int$geo == "AUT"] = "AT"
+df_int$geo[df_int$geo == "BEL"] = "BE"
+df_int$geo[df_int$geo == "CZE"] = "CZ"
+df_int$geo[df_int$geo == "DNK"] = "DK"
+df_int$geo[df_int$geo == "EST"] = "EE"
+df_int$geo[df_int$geo == "FIN"] = "FI"
+df_int$geo[df_int$geo == "FRA"] = "FR"
+df_int$geo[df_int$geo == "DEU"] = "DE"
+df_int$geo[df_int$geo == "GRC"] = "EL"
+df_int$geo[df_int$geo == "HUN"] = "HU"
+df_int$geo[df_int$geo == "IRL"] = "IE"
+df_int$geo[df_int$geo == "ISL"] = "IS"
+df_int$geo[df_int$geo == "ITA"] = "IT"
+df_int$geo[df_int$geo == "LVA"] = "LV"
+df_int$geo[df_int$geo == "LTU"] = "LT"
+df_int$geo[df_int$geo == "LUX"] = "LU"
+df_int$geo[df_int$geo == "NOR"] = "NO"
+df_int$geo[df_int$geo == "POL"] = "PL"
+df_int$geo[df_int$geo == "SVK"] = "SK"
+df_int$geo[df_int$geo == "SVN"] = "SI"
+df_int$geo[df_int$geo == "ESP"] = "ES"
+df_int$geo[df_int$geo == "SWE"] = "SE"
+df_int$geo[df_int$geo == "CHE"] = "CH"
+df_int$geo[df_int$geo == "GRB"] = "UK"
 
 
-data_join <-merge(data_join,df_emptot, by = c("geo", "time"), all = TRUE)
+data_join <-merge(data_join,df_int, by = c("geo", "time"), all = TRUE)
 
 df_emp <- df_emp[ , time = as.Date(time)]
-df_emptot$time = format(as.Date(df_emptot$time, format="%d/%m/%Y"),"%Y")
+df_int$time = format(as.Date(df_int$time, format="%d/%m/%Y"),"%Y")
 df_emp$time <- as.Date(df_emp$time,format="%Y")
 data_join$time <- as.Date(data_join$time,format="%Y")
 mutate(data_join, time = as.Date(time, format= "%Y"))
@@ -185,6 +183,7 @@ filter_gdp <- c( MEASURE = )
 # CP_MEUR : current price million euros, B1QG : Gross domestic product at market price 
 
 data_gdp <- get_eurostat("nama_10_gdp", filters = list(geo = countries, na_item = "B1GQ", unit = "CP_MEUR"))
+data_gdp <- rename(data_gdp,gdp = values)
 data_gdp$time = format(as.Date(data_gdp$time, format="%d/%m/%Y"),"%Y")
 
 # Price index : implicit deflator 2010 = 100 euros PD10EUR 
@@ -192,8 +191,71 @@ data_gdp_deflator10 <- get_eurostat("nama_10_gdp", filters = list(geo = countrie
 data_gdp_deflator10$time = format(as.Date(data_gdp_deflator10$time, format="%d/%m/%Y"),"%Y")
 
 data_gdp_deflator15 <- get_eurostat("nama_10_gdp", filters = list(geo = countries, na_item = "B1GQ", unit = "PD15_EUR"))
+data_gdp_deflator15 <- rename(data_gdp_deflator15,deflator15 = values)
 data_gdp_deflator15$time = format(as.Date(data_gdp_deflator15$time, format="%d/%m/%Y"),"%Y")
 
 
-# CHAIN Link Volue ? 
+# Interest rate 
+
+rate <- "KEI"
+strucrate <- get_data_structure(rate)
+str(strucrate, max.level = 1)
+strucrate$MEASURE  
+strucrate$SUBJECT  # IRLTLT01   Long-term interest rate
+strucrate$FREQUENCY # A annual 
+strucrate$OBS_STATUS
+strucrate$UNIT
+df_int <- get_dataset(dataset="KEI",filter = "IR+IRLTLT01.AUT+BEL+CHL+CRI+CZE+DNK+EST+FIN+FRA+DEU+GRC+HUN+ISL+IRL+ITA+LTU+LVA+LUX+NLD+NOR+POL+PRT+SVK+SVN+ESP+SWE+CHE+GBR+IND+IDN.ST.A",
+                      pre_formatted = TRUE)
+df_int$LOCATION[df_int$LOCATION == "AUT"] = "AT"
+df_int$LOCATION[df_int$LOCATION == "BEL"] = "BE"
+df_int$LOCATION[df_int$LOCATION == "CZE"] = "CZ"
+df_int$LOCATION[df_int$LOCATION == "DNK"] = "DK"
+df_int$LOCATION[df_int$LOCATION == "EST"] = "EE"
+df_int$LOCATION[df_int$LOCATION == "FIN"] = "FI"
+df_int$LOCATION[df_int$LOCATION == "FRA"] = "FR"
+df_int$LOCATION[df_int$LOCATION == "DEU"] = "DE"
+df_int$LOCATION[df_int$LOCATION == "GRC"] = "EL"
+df_int$LOCATION[df_int$LOCATION == "HUN"] = "HU"
+df_int$LOCATION[df_int$LOCATION == "IRL"] = "IE"
+df_int$LOCATION[df_int$LOCATION == "ISL"] = "IS"
+df_int$LOCATION[df_int$LOCATION == "ITA"] = "IT"
+df_int$LOCATION[df_int$LOCATION == "LVA"] = "LV"
+df_int$LOCATION[df_int$LOCATION == "LTU"] = "LT"
+df_int$LOCATION[df_int$LOCATION == "LUX"] = "LU"
+df_int$LOCATION[df_int$LOCATION == "NOR"] = "NO"
+df_int$LOCATION[df_int$LOCATION == "POL"] = "PL"
+df_int$LOCATION[df_int$LOCATION == "SVK"] = "SK"
+df_int$LOCATION[df_int$LOCATION == "SVN"] = "SI"
+df_int$LOCATION[df_int$LOCATION == "ESP"] = "ES"
+df_int$LOCATION[df_int$LOCATION == "SWE"] = "SE"
+df_int$LOCATION[df_int$LOCATION == "CHE"] = "CH"
+df_int$LOCATION[df_int$LOCATION == "GRB"] = "UK"
+
+colnames(df_int)[colnames(df_int) == 'LOCATION'] <- 'geo'
+colnames(df_int)[colnames(df_int) == 'Time'] <- 'time'
+df_int <- rename(df_int,long_int=ObsValue)
+
+#Building all dataset
+fin_cons <- subset(fin_cons,select = c(time,geo,final_cons))
+inv_grant <- subset(inv_grant,select = c(time,geo,inv_grants))
+data_env <- subset(data_env, select = c(time,geo,exp_env))
+data_employ <- subset(data_employ,select =c(time,geo, ths_wpeople))
+data_hour <- subset(data_hour,select = c(time,geo, ths_whour))
+data_gdp <- subset(data_gdp,select = c(time,geo,gdp))
+data_gdp_deflator15 <- subset(data_gdp_deflator15,select=c(geo,time,deflator15))
+df_int <- subset(df_int,select = c(geo,time,long_int))
+
+data_join <- merge(fin_cons,inv_grant, by = c("geo", "time"), all = TRUE)
+data_join <- merge(data_join,data_env, by = c("geo", "time"), all = TRUE)
+data_join <- merge(data_join,data_employ, by = c("geo", "time"), all = TRUE)
+data_join <- merge(data_join,data_hour, by = c("geo", "time"), all = TRUE)
+data_join <- merge(data_join,data_gdp, by = c("geo", "time"), all = TRUE)
+data_join <- merge(data_join,data_gdp_deflator15, by = c("geo", "time"), all = TRUE)
+data_join <- merge(data_join,df_int, by = c("geo", "time"), all = TRUE)
+
+data_join = data_join[rowSums(is.na(data_join))<8,]
+
+
+
 
