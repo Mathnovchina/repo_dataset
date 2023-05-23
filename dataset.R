@@ -3,11 +3,18 @@ install.packages("RJSONIO")
 install.packages("wbstats")
 install.packages('OECD')
 install.packages("usethis")
+install.packages("openxlsx")
+install.packages('IMFData')
+devtools::install_github('mingjerli/IMFData')
+library(IMFData)
 install.packages(c('tibble', 'dplyr', 'readr'))
+
 remotes::install_github("https://github.com/expersso/OECD")
 install_github("expersso/OECD")
 library(remotes)
-remotes::install_github("ropengov/eurostat")
+remotes::install_github("ropengov/eurostat",force = TRUE)
+library(openxlsx)
+library(imfr)
 library(dplyr)
 library(readr)
 library(tibble)
@@ -20,13 +27,16 @@ library(httr)
 library(RJSONIO)
 library(tidyverse)
 library(wbstats)
-
+ap <- available.packages()
 # Get Eurostat data listing
 toc <- get_eurostat_toc()
 year <-  seq(from =1995, to=2021)
-countries = c("AT","BE", "BG", "CH", "CY", "CZ", "DE", "DK", "EA19", "EA20", "EE", "EL", "ES", 
-              "EU27_2020", "FI", "FR", "HR", "HU", "IE", "IS","IT", "LT", "LU", "LV", "MT", "NL",
+
+
+countries = c("AT","BE", "BG", "CH", "CY", "CZ", "DE", "DK", "EE","EU", "EL", "ES", 
+               "FI", "FR", "HR", "HU", "IE", "IS","IT", "LT", "LU", "LV", "MT", "NL",
               "NO", "PL", "PT", "RO", "SE", "SI", "SK", "TR", "UK")
+
 country_name <- efta_countries
 country_nam <- eu_countries
 # `government expenditure Totale, general gov, millions euro
@@ -35,6 +45,8 @@ filters1 = list( cofog99= "Total",
                  na_item = "TE",
                  sector = "S13",
                 unit = "MIO_EUR")
+
+
 data_exp <- get_eurostat("GOV_10A_EXP", filters = filters1)
 data_exp = rename(data_exp,exp_tot = values)
 data_exp$time = format(as.Date(data_exp$time, format ="%d/%m/%Y"),"%Y")
@@ -43,11 +55,44 @@ warning()
 # Government final consumption  + investment grant (has to be deflated, current millions euros)
 # P3 final consumption expenditure ,D92 investment grant
 
-filter_c = list(cofog99 = "TOTAL",
-                na_item = c("P3","D92"),
+filter_c = list(cofog99 = "GF05",
+                na_item = c("P3","P51G","TE"),
                 sector = "S13",
                 unit = "MIO_EUR")
 exp_consinv<- get_eurostat("GOV_10A_EXP", filters = filter_c)
+
+env_tot <- subset(exp_consinv, na_item == "TE")
+env_inv <- subset(exp_consinv,na_item == "P51G")
+env_cons <- subset(exp_consinv,na_item == "P3")
+env_tot$time = format(as.Date(env_tot$time, format ="%d/%m/%Y"),"%Y")
+env_inv$time = format(as.Date(env_inv$time, format ="%d/%m/%Y"),"%Y")
+env_cons$time = format(as.Date(env_cons$time, format ="%d/%m/%Y"),"%Y")
+
+env_tot <- rename(env_tot,env_total = values )
+env_inv <- rename(env_inv, env_invest = values)
+env_cons <- rename(env_cons, env_consu = values)
+
+env_tot <- subset(env_tot,select = c(time,geo,env_total))
+env_inv <- subset(env_inv,select = c(time,geo,env_invest))
+env_cons <- subset(env_cons,select = c(time,geo,env_consu))
+
+
+dat_gfcf<- get_eurostat("GOV_10A_EXP", filters = filter_f)
+
+
+filter_f = list(cofog99 = "Total",
+                na_item = "P51G",# Total public invstment Gross Fixed Capital Formation 
+                sector = "S13",
+                unit = "MIO_EUR")
+
+dat_gfcf <- rename(dat_gfcf,gfcf_pub = values )
+
+
+
+dat_gfcf <- subset(dat_gfcf,select = c(geo,time, gfcf_pub))
+dat_gfcf$time = format(as.Date(dat_gfcf$time, format ="%d/%m/%Y"),"%Y")
+data_join <- merge(data_join,dat_gfcf, by = c("geo", "time"), all = TRUE)
+
 
 inv_grant <- subset(exp_consinv,na_item == "D92")
 inv_grant = rename(inv_grant,inv_grants = values)
@@ -58,9 +103,19 @@ fin_cons = rename(fin_cons,final_cons=values)
 fin_cons$time = format(as.Date(fin_cons$time, format ="%d/%m/%Y"),"%Y")
 # National expenditure on environmental protection, total economy, millions euro to be deflated 
 
-filter2 = list(sector = "S1",
+filter2 = list(sector = "S13",
+               cofog99 = "GF05", 
+               na_item = "P51G",
                unit = "MIO_EUR")
-data_env <- get_eurostat("ENV_AC_EPNEIS", filters = filter2)
+data_env_tot <- get_eurostat("GOV_10A_EXP", filters = c(sector = "S13",
+                                                         cofog99 = "GF05", 
+                                                         unit = "MIO_EUR"))
+
+filter2 = list(sector = "S13",
+               cofog99 = "P51G",
+               na_item = "TE",
+               unit = "MIO_EUR")
+data_env_inv <- get_eurostat("GOV_10A_EXP", filters = filter2)
 data_env = rename(data_env,exp_env=values)
 
 data_env$time = format(as.Date(data_env$time, format="%d/%m/%Y"),"%Y")
@@ -207,34 +262,93 @@ strucrate$OBS_STATUS
 strucrate$UNIT
 df_int <- get_dataset(dataset="KEI",filter = "IR+IRLTLT01.AUT+BEL+CHL+CRI+CZE+DNK+EST+FIN+FRA+DEU+GRC+HUN+ISL+IRL+ITA+LTU+LVA+LUX+NLD+NOR+POL+PRT+SVK+SVN+ESP+SWE+CHE+GBR+IND+IDN.ST.A",
                       pre_formatted = TRUE)
-df_int$LOCATION[df_int$LOCATION == "AUT"] = "AT"
-df_int$LOCATION[df_int$LOCATION == "BEL"] = "BE"
-df_int$LOCATION[df_int$LOCATION == "CZE"] = "CZ"
-df_int$LOCATION[df_int$LOCATION == "DNK"] = "DK"
-df_int$LOCATION[df_int$LOCATION == "EST"] = "EE"
-df_int$LOCATION[df_int$LOCATION == "FIN"] = "FI"
-df_int$LOCATION[df_int$LOCATION == "FRA"] = "FR"
-df_int$LOCATION[df_int$LOCATION == "DEU"] = "DE"
-df_int$LOCATION[df_int$LOCATION == "GRC"] = "EL"
-df_int$LOCATION[df_int$LOCATION == "HUN"] = "HU"
-df_int$LOCATION[df_int$LOCATION == "IRL"] = "IE"
-df_int$LOCATION[df_int$LOCATION == "ISL"] = "IS"
-df_int$LOCATION[df_int$LOCATION == "ITA"] = "IT"
-df_int$LOCATION[df_int$LOCATION == "LVA"] = "LV"
-df_int$LOCATION[df_int$LOCATION == "LTU"] = "LT"
-df_int$LOCATION[df_int$LOCATION == "LUX"] = "LU"
-df_int$LOCATION[df_int$LOCATION == "NOR"] = "NO"
-df_int$LOCATION[df_int$LOCATION == "POL"] = "PL"
-df_int$LOCATION[df_int$LOCATION == "SVK"] = "SK"
-df_int$LOCATION[df_int$LOCATION == "SVN"] = "SI"
-df_int$LOCATION[df_int$LOCATION == "ESP"] = "ES"
-df_int$LOCATION[df_int$LOCATION == "SWE"] = "SE"
-df_int$LOCATION[df_int$LOCATION == "CHE"] = "CH"
-df_int$LOCATION[df_int$LOCATION == "GRB"] = "UK"
 
-colnames(df_int)[colnames(df_int) == 'LOCATION'] <- 'geo'
-colnames(df_int)[colnames(df_int) == 'Time'] <- 'time'
-df_int <- rename(df_int,long_int=ObsValue)
+df_int_short <- get_dataset(dataset="MEI_FIN",filter = "IR3TIB.AUT+BEL+CHL+CRI+CZE+DNK+EST+FIN+FRA+DEU+GRC+HUN+ISL+IRL+ITA+LTU+LVA+LUX+NLD+NOR+POL+PRT+SVK+SVN+ESP+SWE+CHE+GBR+IND+IDN.A",
+                      pre_formatted = TRUE)
+df_int_short <- subset(df_int_short,select = c(geo,time,short_int))
+
+df_int_short$geo[df_int_short$geo== "AUT"] = "AT"
+df_int_short$geo[df_int_short$geo == "BEL"] = "BE"
+df_int_short$LOCATION[df_int_short$LOCATION == "CZE"] = "CZ"
+df_int_short$LOCATION[df_int_short$LOCATION == "DNK"] = "DK"
+df_int_short$LOCATION[df_int_short$LOCATION == "EST"] = "EE"
+df_int_short$LOCATION[df_int_short$LOCATION == "FIN"] = "FI"
+df_int_short$LOCATION[df_int_short$LOCATION == "FRA"] = "FR"
+df_int_short$LOCATION[df_int_short$LOCATION == "DEU"] = "DE"
+df_int_short$LOCATION[df_int_short$LOCATION == "GRC"] = "EL"
+df_int_short$LOCATION[df_int_short$LOCATION == "HUN"] = "HU"
+df_int_short$LOCATION[df_int_short$LOCATION == "IRL"] = "IE"
+df_int_short$LOCATION[df_int_short$LOCATION == "ISL"] = "IS"
+df_int_short$LOCATION[df_int_short$LOCATION == "ITA"] = "IT"
+df_int_short$LOCATION[df_int_short$LOCATION == "LVA"] = "LV"
+df_int_short$LOCATION[df_int_short$LOCATION == "LTU"] = "LT"
+df_int_short$LOCATION[df_int_short$LOCATION == "LUX"] = "LU"
+df_int_short$LOCATION[df_int_short$LOCATION == "NOR"] = "NO"
+df_int_short$LOCATION[df_int_short$LOCATION == "POL"] = "PL"
+df_int_short$LOCATION[df_int_short$LOCATION == "SVK"] = "SK"
+df_int_short$LOCATION[df_int_short$LOCATION == "SVN"] = "SI"
+df_int_short$LOCATION[df_int_short$LOCATION == "ESP"] = "ES"
+df_int_short$LOCATION[df_int_short$LOCATION == "SWE"] = "SE"
+df_int_short$LOCATION[df_int_short$LOCATION == "CHE"] = "CH"
+df_int_short$LOCATION[df_int_short$LOCATION == "GRB"] = "UK"
+
+colnames(df_int_short)[colnames(df_int_short) == 'LOCATION'] <- 'geo'
+colnames(df_int_short)[colnames(df_int_short) == 'Time'] <- 'time'
+df_int_short <- rename(df_int_short,short_int=ObsValue)
+dat_gfcf <- merge(dat_gfcf,data_gdp_deflator15, by = c("geo","time"), all=TRUE)
+dat_gfcf <- dat_gfcf %>% 
+  mutate(gfcf = if_else(gfcf == "NA",  0,100*gfcf/deflator15))
+
+
+
+# GFCF, private investment 
+
+# Get dimension code of IFS dataset
+IFS.available.codes <- DataStructureMethod("IFS")
+# Available dimension code
+names(IFS.available.codes)
+
+#  732         NFI_XDC  Gross fixed capital formation 
+
+databaseID <- "IFS"
+checkquery = FALSE 
+startdate = "1995-01-01"
+enddate = "2022-12-31"
+queryfilter <- list(CL_FREQ = "A",  CL_AREA_IFS = countries, CL_INDICATOR_IFS = "NFI_XDC")
+CodeSearch(IFS.available.codes, "CL_AREA_IFS")
+
+data_imf <- IMFData::DataStructureMethod("IFS")
+GR.NGDP.query <- CompactDataMethod(databaseID, queryfilter, startdate, enddate, 
+                                   checkquery,tidy = TRUE)
+GR.NGDP.query[, 1:5]
+
+
+databaseID <- "IFS"
+startdate = "2001-01-01"
+enddate = "2016-12-31"
+checkquery = FALSE
+
+## Germany, Norminal GDP in Euros, Norminal GDP in National Currency
+queryfilter <- list(CL_FREA = "", CL_AREA_IFS = "GR", CL_INDICATOR_IFS = c("NGDP_EUR", 
+                                                                           "NGDP_XDC"))
+GR.NGDP.query <- CompactDataMethod(databaseID, queryfilter, startdate, enddate, 
+                                   checkquery,tidy=TRUE)
+colnames(GR.NGDP.query)[colnames(GR.NGDP.query) == '@REF_AREA'] <- 'geo'
+colnames(GR.NGDP.query)[colnames(GR.NGDP.query) == '@TIME_PERIOD'] <- 'time'
+colnames(GR.NGDP.query)[colnames(GR.NGDP.query)=='@OBS_VALUE'] <- 'gfcf'
+
+dim(GR.NGDP.query)
+
+data_gfcf <- subset(data_gfcf,select = c(geo,time,gfcf))
+data_gfcf <- merge(data_gfcf,data_gdp_deflator15,by = c("geo", "time"), all = TRUE)
+data_gfcf <- data_gfcf %>% 
+  mutate(gfcf = if_else(gfcf == "NA",  0, 100*gfcf/deflator15))
+data_gfcf$gfcf <- as.numeric(data_gfcf$gfcf)
+
+
+# Search code contains GDP
+CodeSearch(IFS.available.codes, "CL_INDICATOR_IFS", "Gross Fixed Capital Formation")
+
 
 #Building all dataset
 fin_cons <- subset(fin_cons,select = c(time,geo,final_cons))
@@ -247,6 +361,7 @@ data_gdp_deflator15 <- subset(data_gdp_deflator15,select=c(geo,time,deflator15))
 df_int <- subset(df_int,select = c(geo,time,long_int))
 data_gdp_deflator15 <- subset(data_gdp_deflator15, select = c(geo,time,deflator15))
 
+
 data_join <- merge(fin_cons,inv_grant, by = c("geo", "time"), all = TRUE)
 data_join <- merge(data_join,data_env, by = c("geo", "time"), all = TRUE)
 data_join <- merge(data_join,data_employ, by = c("geo", "time"), all = TRUE)
@@ -255,6 +370,17 @@ data_join <- merge(data_join,data_gdp, by = c("geo", "time"), all = TRUE)
 data_join <- merge(data_join,data_gdp_deflator15, by = c("geo", "time"), all = TRUE)
 data_join <- merge(data_join,df_int, by = c("geo", "time"), all = TRUE)
 data_join <- merge(data_join,data_gdp_deflator,by = c("geo", "time"), all = TRUE)
+
+data_join <- merge(data_join,env_inv,by = c("geo", "time"), all = TRUE)
+data_join <- merge(data_join,env_tot,by = c("geo", "time"), all = TRUE)
+data_join <- merge(data_join,env_cons,by = c("geo", "time"), all = TRUE)
+data_join <- merge(data_join,data_gfcf, by = c("geo", "time"), all = TRUE)
+data_join <- merge(data_join,df_int_short, by = c("geo", "time"), all = TRUE)
+
+data_join <- subset(data_join,select = -c(inv_grants,deflator15))
+
+data_join <- subset(data_join, select = -env_invest.x)
+data_join <- rename(data_join,env_invest = env_invest.y)
 data_join <- subset(data_join,select = -c(freq.x,unit.x,na_item.x,freq.y,unit.y,na_item.y))
 data_join <- rename(data_join,deflator15 = values.y)
 data_join = data_join[rowSums(is.na(data_join))<8,]
@@ -268,6 +394,23 @@ data_join <- data_join %>%
   mutate(exp_env = if_else(exp_env == "NA",  0,100*exp_env/deflator15))
 data_join <- data_join %>% 
   mutate(va_thwokers = if_else(deflated_GDP == "NA",  0, deflated_GDP/ths_wpeople))
+data_join <- data_join %>% 
+  mutate(env_inv = if_else(deflated_GDP == "NA",  0, 100*env_invest/deflator15))
+data_join <- data_join %>% 
+  mutate(env_total = if_else(deflated_GDP == "NA",  0, 100*env_total/deflator15))
+data_join <- data_join %>% 
+  mutate(env_consu = if_else(deflated_GDP == "NA",  0, 100*env_consu/deflator15))
+data_join <- data_join %>% 
+  mutate(gfcf_pub = if_else(gfcf_pub == "NA",  0, 100*gfcf_pub/deflator15))
+data_join <- data_join %>% 
+  mutate(long_int = long_int/100)
+data_join <- subset(data_join,select = -c(exp_env))
+
+data_join$long_int <- as.numeric(data_join$long_int)
+
+sapply(data_join, class)
 
 
+# for writing a data.frame or list of data.frames to an xlsx file
+write.xlsx(data_join, 'data_set_new.xlsx')
 
